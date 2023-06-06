@@ -26,7 +26,7 @@ def main():
 
     config = ConfigParser()
     config.read(args.config)
-    root_dir = Path(config['detection']['root_dir']) / args.split
+    root_dir = Path(config['data']['root_dir']) / args.split
     data_dir = root_dir / 'image_02'
     seg_out_dir = root_dir / 'seg_out' / config['detection']['seg_name']
     if args.embedding:

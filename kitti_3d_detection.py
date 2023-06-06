@@ -219,7 +219,7 @@ def main():
     config = ConfigParser()
     config.read(args.config)
 
-    root_dir = Path(config['detection']['root_dir']) / args.split
+    root_dir = Path(config['data']['root_dir']) / args.split
     det3d_name = config['detection']['det3d_name']
     output_dir = root_dir / 'det3d_out' / det3d_name
     weight_path = config['detection']['det3d_ckpt']

@@ -59,7 +59,7 @@ def main():
     args = parser.parse_args()
     config = ConfigParser()
     config.read(args.config)
-    root_dir = Path(config['detection']['root_dir']) / args.split
+    root_dir = Path(config['data']['root_dir']) / args.split
     det_name = config['detection']['det3d_name']
 
     lidar_dir = root_dir / 'velodyne'

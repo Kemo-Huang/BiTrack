@@ -30,7 +30,7 @@ def main():
     args = parser.parse_args()
     config = ConfigParser()
     config.read(args.config)
-    root_dir = Path(config['detection']['root_dir']) / args.split
+    root_dir = Path(config['data']['root_dir']) / args.split
     save_img_hw_json(root_dir)
 
 

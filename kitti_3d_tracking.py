@@ -1,4 +1,4 @@
-import json
+import pickle
 import shutil
 import time
 from argparse import ArgumentParser
@@ -8,10 +8,9 @@ from pathlib import Path
 import numpy as np
 import tqdm
 
-from tracking.detections.kitti_detections import get_detection_data
 from tracking.tracker import Tracker
-from utils import (Calibration, get_poses_from_file, read_seqmap_file,
-                   visualize_trajectories, write_kitti_trajectories_to_file)
+from utils import (read_seqmap_file, visualize_trajectories,
+                   write_kitti_trajectories_to_file)
 
 
 def main():
@@ -25,36 +24,14 @@ def main():
     config = ConfigParser()
     config.read(args.config)
 
-    detection_cfg = config['detection']
-
-    root_dir = Path(detection_cfg['root_dir'])
+    root_dir = Path(config['data']['root_dir'])
     split_dir = root_dir / ('testing' if 'test' in args.split else 'training')
-    calib_dir = split_dir / 'calib'
-    oxts_dir = split_dir / 'oxts'
-    img_hw_dict = json.load(open(split_dir / 'img_hw.json'))
+    detection_cfg = config['detection']
 
     det3d_name = detection_cfg['det3d_name']
     det3d_dir = split_dir / 'det3d_out' / det3d_name
-    crop_dir = split_dir / 'cropped_points' / det3d_name
-    det2d_dir = split_dir / 'det2d_out' / detection_cfg['det2d_name']
-    det2d_emb_dir = split_dir / 'det2d_emb_out' / detection_cfg['det2d_emb_name']
-    seg_out_dir = split_dir / 'seg_out' / detection_cfg['seg_name']
-    seg_emb_dir = split_dir / 'seg_emb_out' / detection_cfg['seg_emb_name']
     det3d_save_name = detection_cfg['det3d_save_name']
     det3d_save_dir = split_dir / 'det3d_out' / det3d_save_name
-
-    use_lidar = detection_cfg.getboolean('use_lidar')
-    use_inst = detection_cfg.getboolean('use_inst')
-    use_det2d = detection_cfg.getboolean('use_det2d')
-    assert not (use_inst and use_det2d)
-    use_embed = detection_cfg.getboolean('use_embed')
-
-    if use_inst:
-        emb_dir = seg_emb_dir
-    elif use_det2d:
-        emb_dir = det2d_emb_dir
-    else:
-        use_embed = False
 
     tracking_cfg = config['tracking']
 
@@ -99,32 +76,24 @@ def main():
         frames = [f.stem for f in seq_det3d_dir.iterdir()]
         num_frames = len(frames)
         seq_det3d_save_dir: Path = det3d_save_dir / seq
-        seq_det3d_save_dir.mkdir(parents=True, exist_ok=True)
         
         # init
         tracker.reset()
         last_frame = None
         cur_seq_output_lines = []
         offline_trajectories = {}
-        bad_dets_2d = []
-        bad_dets_3d = []
-        bad_preds_3d = []
-        bad_trks = []
         time_cost = 0
-
-        if tracking_cfg.getboolean('use_pose'):
-            # Reads imu data and converts to poses
-            poses = get_poses_from_file(oxts_dir / f'{seq}.txt')
-        else:
-            poses = [None for _ in range(num_frames)]
-
-        # seq calibration data
-        calib = Calibration(calib_dir / f'{seq}.txt')
-
-        seq_img_hw_dict = img_hw_dict[seq]
 
         pbar = tqdm.tqdm(list(reversed(range(num_frames))) if backward else range(num_frames))
         pbar.set_description(seq)
+        
+        with open(seq_det3d_save_dir / 'good_dets_3d.pkl', 'rb') as f:
+            good_dets_3d = pickle.load(f)
+
+        if visualization_cfg.getboolean('trajectory'):
+            with open(seq_det3d_save_dir / 'bad_dets_3d.pkl', 'rb') as f:
+                bad_dets_3d = pickle.load(f)
+        
         for idx in pbar:
             # Retrieves the current frame info
             frame = frames[idx]
@@ -139,44 +108,18 @@ def main():
                     num_passed_frames = int(frame) - last_frame
                     last_frame += num_passed_frames
 
-            # Gets detections from files
-            good_dets, cur_bad_dets_3d, cur_bad_dets_2d = get_detection_data(
-                det3d_file=seq_det3d_dir / f'{frame}.txt',
-                calib=calib,
-                pose=poses[idx],
-                img_hw=seq_img_hw_dict[frame],
-                lidar_dir=crop_dir / seq / frame if use_lidar else None,
-                det2d_file=det2d_dir / seq / f'{frame}.txt' if use_det2d else None,
-                seg_file=seg_out_dir / seq / f'{frame}.png' if use_inst else None,
-                embed_dir=emb_dir / seq / frame if use_embed else None,
-                min_corr_pts=detection_cfg.getfloat('min_corr_pts'),
-                min_corr_iou=detection_cfg.getfloat('min_corr_iou'),
-                raw_score=detection_cfg.getboolean('raw_score'),
-                score_thresh=detection_cfg.getfloat('score_thresh'),
-                recover_score_thresh=detection_cfg.getfloat('recover_score_thresh')
-            )
-
-            with open(seq_det3d_save_dir / f'{frame}.txt', 'w') as f:
-                lines = []
-                if good_dets is not None:
-                    lines = [trk.to_obj().serialize() for trk in good_dets.objs]
-                f.writelines(lines)
+            cur_good_dets = good_dets_3d[frame]
 
             # Perfroms tracking for the current frame
             start_time = time.time()
-            pred_ids, pred_boxes = tracker.predict(num_passed_frames)
+            _, pred_boxes = tracker.predict(num_passed_frames)
             matched, entry_dets, exit_trks, false_trks = tracker.associate(
-                pred_boxes, good_dets)
+                pred_boxes, cur_good_dets)
             tracker.update(matched, entry_dets, exit_trks,
-                           false_trks, good_dets)
+                           false_trks, cur_good_dets)
             online_trks, dead_tracks = tracker.track_management()
             end_time = time.time()
             time_cost += end_time - start_time
-
-            bad_dets_3d.append((frame, cur_bad_dets_3d))
-            bad_dets_2d.append((frame, cur_bad_dets_2d))
-            bad_preds_3d.append(
-                (frame, pred_ids[exit_trks], pred_boxes[exit_trks]))
 
             # Saves data to strings
             if offline:
@@ -186,8 +129,6 @@ def main():
                             obj.tracking_id = trk.id
                         offline_trajectories[trk.id] = [
                             trk.boxes[::-1], trk.objs[::-1]] if backward else [trk.boxes, trk.objs]
-                    else:
-                        bad_trks.append(trk)
 
             else:
                 for trk in online_trks:
@@ -202,19 +143,11 @@ def main():
                         obj.tracking_id = trk.id
                     offline_trajectories[trk.id] = [
                         trk.boxes[::-1], trk.objs[::-1]] if backward else [trk.boxes, trk.objs]
-                else:
-                    bad_trks.append(trk)
-
-            # print('bad tracks', sum([len(trk.boxes) for trk in bad_trks]))
-            # print('bad det 3d', sum(
-            #     [len(dets.boxes) if dets is not None else 0 for _, dets in bad_dets_3d]))
-            # print('bad det 2d', sum(
-            #     [len(dets.inst_ids) if dets is not None else 0 for _, dets in bad_dets_2d]))
 
             if visualization_cfg.getboolean('trajectory'):
                 visualize_trajectories(
                     trajectories=[boxes for boxes, _ in offline_trajectories.values()],
-                    other_boxes=np.concatenate([dets.boxes for _, dets in bad_dets_3d if dets is not None]) if visualization_cfg.getboolean('det_noise') else None
+                    other_boxes=np.concatenate([dets.boxes for dets in bad_dets_3d.values() if dets is not None]) if visualization_cfg.getboolean('det_noise') else None
                 )
             write_kitti_trajectories_to_file(seq, offline_trajectories, tracking_out_txt_dir)
 

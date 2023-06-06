@@ -58,4 +58,5 @@ python data_processing/crop_points.py $config_path $split
 python data_processing/save_img_shapes.py $config_path $split
 ```
 
-3. 
+3. Run forward tracking
+
