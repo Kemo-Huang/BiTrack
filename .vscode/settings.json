@@ -1,0 +1,26 @@
+{
+    "files.watcherExclude": {
+        "**/data": true,
+        "**/output": true,
+        "**/*.egg-info": true,
+        "**/build": true,
+        "**/__pycache__": true,
+        // "**/TrackEval": true,
+    },
+    "search.exclude": {
+        "**/data": true,
+        "**/output": true,
+        "**/*.egg-info": true,
+        "**/build": true,
+        "**/__pycache__": true,
+        // "**/TrackEval": true,
+    },
+    "files.exclude": {
+        "**/data": true,
+        "**/output": true,
+        "**/*.egg-info": true,
+        "**/build": true,
+        "**/__pycache__": true,
+        // "**/TrackEval": true,
+    }
+}
