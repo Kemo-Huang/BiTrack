@@ -5,10 +5,6 @@ import shutil
 VALID_SEQ_ID = ['%04d' % seq for seq in range(21)]
 TEST_SEQ_ID = ['%04d' % seq for seq in range(29)]
 
-parser = argparse.ArgumentParser(description="arg parser")
-parser.add_argument('--data_root', type=str, default='data/kitti')
-args = parser.parse_args()
-
 
 def init_or_clear_dir(path):
     if not os.path.exists(path):
@@ -19,7 +15,7 @@ def init_or_clear_dir(path):
             os.remove(f_path)
 
 
-def create_train_sample_data(input_root, output_root, init_or_clear_dirs=True, only_labels=False):
+def create_train_sample_data(input_root, output_root, operation, init_or_clear_dirs=True, only_labels=False):
     res_training = os.path.join(output_root, 'training')
 
     res_calib = os.path.join(res_training, 'calib')
@@ -83,13 +79,13 @@ def create_train_sample_data(input_root, output_root, init_or_clear_dirs=True, o
             sample_str = str(sample_id).zfill(6)
             if not only_labels:
                 assert os.path.isfile(os.path.join(tracking_image, f'{frame}.png'))
-                shutil.copyfile(os.path.join(tracking_image, f'{frame}.png'),
+                operation(os.path.join(tracking_image, f'{frame}.png'),
                                 os.path.join(res_image, f'{sample_str}.png'))
                 assert os.path.isfile(os.path.join(tracking_lidar, f'{frame}.bin'))
-                shutil.copyfile(os.path.join(tracking_lidar, f'{frame}.bin'),
+                operation(os.path.join(tracking_lidar, f'{frame}.bin'),
                                 os.path.join(res_lidar, f'{sample_str}.bin'))
                 assert os.path.isfile(tracking_calib)
-                shutil.copyfile(tracking_calib, os.path.join(res_calib, f'{sample_str}.txt'))
+                operation(tracking_calib, os.path.join(res_calib, f'{sample_str}.txt'))
             with open(os.path.join(res_label, f'{sample_str}.txt'), 'w+') as f:
                 f.writelines(label_dict[frame])
             sample_to_real_frame[sample_str] = (seq, frame)
@@ -132,7 +128,7 @@ def create_train_sample_data(input_root, output_root, init_or_clear_dirs=True, o
                 f.write(f'{sample}\n')
 
 
-def create_test_sample_data(input_root, output_root, init_or_clear_dirs=True):
+def create_test_sample_data(input_root, output_root, operation, init_or_clear_dirs=True):
     out_test_dir = os.path.join(output_root, 'testing')
 
     res_calib = os.path.join(out_test_dir, 'calib')
@@ -162,13 +158,13 @@ def create_test_sample_data(input_root, output_root, init_or_clear_dirs=True):
         for frame in frames:
             sample_str = str(sample_id).zfill(6)
             assert os.path.isfile(os.path.join(tracking_image, f'{frame}.png'))
-            shutil.copyfile(os.path.join(tracking_image, f'{frame}.png'),
+            operation(os.path.join(tracking_image, f'{frame}.png'),
                             os.path.join(res_image, f'{sample_str}.png'))
             assert os.path.isfile(os.path.join(tracking_lidar, f'{frame}.bin'))
-            shutil.copyfile(os.path.join(tracking_lidar, f'{frame}.bin'),
+            operation(os.path.join(tracking_lidar, f'{frame}.bin'),
                             os.path.join(res_lidar, f'{sample_str}.bin'))
             assert os.path.isfile(tracking_calib)
-            shutil.copyfile(tracking_calib, os.path.join(res_calib, f'{sample_str}.txt'))
+            operation(tracking_calib, os.path.join(res_calib, f'{sample_str}.txt'))
             sample_to_real_frame[sample_str] = (seq, frame)
             if seq in seq_to_sample.keys():
                 seq_to_sample[seq].append(sample_str)
@@ -209,7 +205,24 @@ def create_test_sample_data(input_root, output_root, init_or_clear_dirs=True):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description="arg parser")
+    parser.add_argument('--data_root', type=str, default='data/kitti')
+    parser.add_argument('--symlink', action='store_true')
+
+    args = parser.parse_args()
     in_dir = os.path.join(args.data_root, 'tracking')
-    out_dir = os.path.join(args.data_root, 'tracking_object')
-    create_train_sample_data(input_root=in_dir, output_root=out_dir, init_or_clear_dirs=False, only_labels=True)
-    create_test_sample_data(input_root=in_dir, output_root=out_dir, init_or_clear_dirs=False)
+    out_dir = os.path.join(args.data_root, 'detection')
+    operation = os.symlink if args.symlink else shutil.copyfile
+    create_train_sample_data(
+        input_root=in_dir, 
+        output_root=out_dir,
+        operation=operation,
+        init_or_clear_dirs=True,
+        only_labels=False  # True: not modifying other data
+    )
+    create_test_sample_data(
+        input_root=in_dir, 
+        output_root=out_dir,
+        operation=operation,
+        init_or_clear_dirs=True,
+    )

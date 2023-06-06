@@ -25,27 +25,36 @@ def main():
     config = ConfigParser()
     config.read(args.config)
 
-    root_dir = Path(config['data']['root_dir'])
-    split_dir = root_dir / ('testing' if args.split == 'test' else 'training')
+    detection_cfg = config['detection']
+
+    root_dir = Path(detection_cfg['root_dir'])
+    split_dir = root_dir / ('testing' if 'test' in args.split else 'training')
     calib_dir = split_dir / 'calib'
     oxts_dir = split_dir / 'oxts'
     img_hw_dict = json.load(open(split_dir / 'img_hw.json'))
 
-    det3d_name = config['data']['det3d_name']
+    det3d_name = detection_cfg['det3d_name']
     det3d_dir = split_dir / 'det3d_out' / det3d_name
     crop_dir = split_dir / 'cropped_points' / det3d_name
-    det2d_dir = split_dir / 'det2d_out' / config['data']['det2d_name']
-    det2d_emb_dir = split_dir / 'det2d_emb_out' / config['data']['det2d_emb_name']
-    seg_out_dir = split_dir / 'seg_out' / config['data']['seg_name']
-    seg_emb_dir = split_dir / 'seg_emb_out' / config['data']['seg_emb_name']
-    det3d_save_name = config['data']['det3d_save_name']
+    det2d_dir = split_dir / 'det2d_out' / detection_cfg['det2d_name']
+    det2d_emb_dir = split_dir / 'det2d_emb_out' / detection_cfg['det2d_emb_name']
+    seg_out_dir = split_dir / 'seg_out' / detection_cfg['seg_name']
+    seg_emb_dir = split_dir / 'seg_emb_out' / detection_cfg['seg_emb_name']
+    det3d_save_name = detection_cfg['det3d_save_name']
     det3d_save_dir = split_dir / 'det3d_out' / det3d_save_name
 
-    tracking_out_dir = Path(f'output/kitti/{args.split}/{args.tag}')
-    if tracking_out_dir.exists():
-        shutil.rmtree(tracking_out_dir)
-    tracking_out_txt_dir = tracking_out_dir / 'data'
-    tracking_out_txt_dir.mkdir(parents=True)
+    use_lidar = detection_cfg.getboolean('use_lidar')
+    use_inst = detection_cfg.getboolean('use_inst')
+    use_det2d = detection_cfg.getboolean('use_det2d')
+    assert not (use_inst and use_det2d)
+    use_embed = detection_cfg.getboolean('use_embed')
+
+    if use_inst:
+        emb_dir = seg_emb_dir
+    elif use_det2d:
+        emb_dir = det2d_emb_dir
+    else:
+        use_embed = False
 
     tracking_cfg = config['tracking']
 
@@ -69,24 +78,20 @@ def main():
     )
 
     visualization_cfg = config['visualization']
-
-    use_lidar = tracking_cfg.getboolean('use_lidar')
-    use_inst = tracking_cfg.getboolean('use_inst')
-    use_det2d = tracking_cfg.getboolean('use_det2d')
-    assert not (use_inst and use_det2d)
-    use_embed = tracking_cfg.getboolean('use_embed')
-
-    if use_inst:
-        emb_dir = seg_emb_dir
-    elif use_det2d:
-        emb_dir = det2d_emb_dir
-    else:
-        use_embed = False
     
     backward = args.backward
     
     seqmap_file = split_dir / f'evaluate_tracking.seqmap.{args.split}'
     frame_num_dict = read_seqmap_file(seqmap_file)
+
+    tracking_out_dir = Path(f'output/kitti/{args.split}/{args.tag}')
+    if tracking_out_dir.exists():
+        shutil.rmtree(tracking_out_dir)
+    tracking_out_txt_dir = tracking_out_dir / 'data'
+    tracking_out_txt_dir.mkdir(parents=True)
+
+    with open(tracking_out_dir / 'config.ini', 'w') as f:
+        config.write(f)
 
     for seq in frame_num_dict:
         # (seq 0001: missing 177 178 179 180)
@@ -144,11 +149,11 @@ def main():
                 det2d_file=det2d_dir / seq / f'{frame}.txt' if use_det2d else None,
                 seg_file=seg_out_dir / seq / f'{frame}.png' if use_inst else None,
                 embed_dir=emb_dir / seq / frame if use_embed else None,
-                min_corr_pts=tracking_cfg.getfloat('min_corr_pts'),
-                min_corr_iou=tracking_cfg.getfloat('min_corr_iou'),
-                raw_score=config['data'].getboolean('raw_score'),
-                score_thresh=tracking_cfg.getfloat('score_thresh'),
-                recover_score_thresh=tracking_cfg.getfloat('recover_score_thresh')
+                min_corr_pts=detection_cfg.getfloat('min_corr_pts'),
+                min_corr_iou=detection_cfg.getfloat('min_corr_iou'),
+                raw_score=detection_cfg.getboolean('raw_score'),
+                score_thresh=detection_cfg.getfloat('score_thresh'),
+                recover_score_thresh=detection_cfg.getfloat('recover_score_thresh')
             )
 
             with open(seq_det3d_save_dir / f'{frame}.txt', 'w') as f:

@@ -8,7 +8,7 @@ from .base_bev_backbone import BaseBEVBackbone
 from .height_compression import HeightCompression
 from .mean_vfe import MeanVFE
 from .spconv_backbone import VoxelBackBone8x
-from .utils import class_agnostic_nms, weighted_box_fusion
+from .utils import class_agnostic_nms
 from .voxel_rcnn_head import VoxelRCNNHead
 
 
@@ -20,7 +20,6 @@ class VoxelRCNN(Module):
             point_cloud_range,
             voxel_size,
             score_thresh=0.2,
-            tta_fusion_thresh=0.2
         ):
         super().__init__()
         if not isinstance(point_cloud_range, np.ndarray):
@@ -28,10 +27,9 @@ class VoxelRCNN(Module):
         if not isinstance(voxel_size, np.ndarray):
             voxel_size = np.array(voxel_size)
         grid_size = (point_cloud_range[3:6] - point_cloud_range[0:3]) / voxel_size
-        self.grid_size = np.round(grid_size).astype(int64)
+        self.grid_size = np.round(grid_size).astype(np.int64)
         self.num_classes = num_classes
         self.score_thresh = score_thresh
-        self.tta_fusion_thresh = tta_fusion_thresh
 
         self.backbone_3d = VoxelBackBone8x(
             input_channels=input_channels, 
@@ -199,50 +197,4 @@ class VoxelRCNN(Module):
             pred_dicts.append(record_dict)
 
         return pred_dicts
-    
-    def tta_post_processing(self, batch_dicts: list):
-        batch_size = batch_dicts[0]['batch_size']
-        pred_dicts = []
-        for batch_idx in range(batch_size):
-            tta_box_preds = []
-            tta_scores = []
-            tta_label_preds = []
-
-            for batch_dict in batch_dicts:
-                box_preds = batch_dict['batch_box_preds'][batch_idx]
-                cls_preds = batch_dict['batch_cls_preds'][batch_idx]
-
-                scores = torch.sigmoid(cls_preds)
-                scores, label_preds = torch.max(scores, dim=-1)
-
-                if self.num_classes > 1:
-                    label_preds = batch_dict['roi_labels'][batch_idx]
-                else:
-                    label_preds = label_preds + 1
-                
-                tta_box_preds.append(box_preds)
-                tta_scores.append(scores)
-                tta_label_preds.append(label_preds)
-            
-            tta_box_preds = torch.cat(tta_box_preds)
-            tta_scores = torch.cat(tta_scores)
-            tta_label_preds = torch.cat(tta_label_preds)
-            final_boxes, final_scores, final_labels = weighted_box_fusion(
-                tta_scores, 
-                tta_box_preds, 
-                tta_label_preds, 
-                fusion_thresh=self.tta_fusion_thresh, 
-                score_thresh=self.score_thresh, 
-                n_models=len(batch_dicts)
-            )
-            record_dict = {
-                'pred_boxes': final_boxes,
-                'pred_scores': final_scores,
-                'pred_labels': final_labels
-            }
-            pred_dicts.append(record_dict)
-        
-        return pred_dicts
-            
-
         

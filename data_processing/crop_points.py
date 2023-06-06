@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from configparser import ConfigParser
 from multiprocessing import Pool
 from pathlib import Path
 
@@ -52,19 +53,24 @@ def mp_func(args):
 
 def main():
     parser = ArgumentParser()
+    parser.add_argument('config', type=str)
     parser.add_argument('split', type=str)
-    parser.add_argument('det_name', type=str)
+    parser.add_argument('--gt', action='store_true')
     args = parser.parse_args()
+    config = ConfigParser()
+    config.read(args.config)
+    root_dir = Path(config['detection']['root_dir']) / args.split
+    det_name = config['detection']['det3d_name']
 
-    lidar_dir = Path(f'data/kitti/tracking/{args.split}/velodyne')
-    out_dir = Path(f'data/kitti/tracking/{args.split}/cropped_points')
-    detection_dir = Path(f'data/kitti/tracking/{args.split}/det3d_out/{args.det_name}')
-    calib_dir = Path(f'data/kitti/tracking/{args.split}/calib')
-
-    is_gt = False
+    lidar_dir = root_dir / 'velodyne'
+    calib_dir = root_dir / 'calib'
+    out_dir = root_dir / 'cropped_points'
+    detection_dir = root_dir / 'det3d_out'/ det_name 
+    
+    is_gt = args.gt
 
     with Pool(8) as p:
-        p.map(mp_func, [(detection_dir / seq.name, seq, Calibration(calib_dir / f'{seq.name}.txt'), out_dir / args.det_name / seq.name, is_gt) for seq in lidar_dir.iterdir()])
+        p.map(mp_func, [(detection_dir / seq.name, seq, Calibration(calib_dir / f'{seq.name}.txt'), out_dir / det_name / seq.name, is_gt) for seq in lidar_dir.iterdir()])
 
 if __name__ == '__main__':
     main()

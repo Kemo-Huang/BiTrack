@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+from configparser import ConfigParser
 from pathlib import Path
 
 import numpy as np
@@ -14,6 +15,7 @@ from tracking.mots_util import TrackHelper
 
 def main():
     parser = ArgumentParser()
+    parser.add_argument('config', type=str)
     parser.add_argument('split', type=str)
     parser.add_argument('--load_seg', action='store_true')
     parser.add_argument('--load_emb', action='store_true')
@@ -22,11 +24,13 @@ def main():
 
     args = parser.parse_args()
 
-    data_dir = Path(f'data/kitti/tracking/{args.split}/image_02')
-    seg_out_dir = Path(
-        f'data/kitti/tracking/{args.split}/seg_out/spatial_embeddings')
-    emb_out_dir = Path(
-        f'data/kitti/tracking/{args.split}/seg_emb_out/point_track')
+    config = ConfigParser()
+    config.read(args.config)
+    root_dir = Path(config['detection']['root_dir']) / args.split
+    data_dir = root_dir / 'image_02'
+    seg_out_dir = root_dir / 'seg_out' / config['detection']['seg_name']
+    if args.embedding:
+        emb_out_dir = root_dir / 'seg_emb_out' / config['detection']['seg_emb_name']
 
     # clustering config
     min_pixel = 160
@@ -37,8 +41,7 @@ def main():
 
     if not args.load_seg:
         seg_net = BranchedERFNet(num_classes=[2 + n_sigma, 1], input_channel=3)
-        seg_net.load_state_dict(torch.load(
-            'segmentation/spatial_embeddings/spatial_embeddings.pth'))
+        seg_net.load_state_dict(torch.load(config['detection']['seg_ckpt']))
         seg_net.cuda()
         seg_net.eval()
 
@@ -46,8 +49,7 @@ def main():
         embed_net = EmbedNet(num_points=num_points, border_ic=3,
                              env_points=500, outputD=32, margin=0.2)
         if not args.load_emb:
-            embed_net.load_state_dict(torch.load(
-                'segmentation/point_track/point_track.pth'))
+            embed_net.load_state_dict(torch.load(config['detection']['seg_emb_ckpt']))
             embed_net.cuda()
             embed_net.eval()
             embed_net.category_embedding = embed_net.category_embedding.cuda()
