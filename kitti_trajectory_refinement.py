@@ -40,13 +40,13 @@ def main():
     backward_data_dir = backward_dir / 'data'
 
     root_dir = Path(config['data']['root_dir'])
-    split_dir = root_dir / ('testing' if args.split == 'test' else 'training')
+    split_dir = root_dir / ('testing' if 'test' in args.split else 'training')
     calib_dir = split_dir / 'calib'
     img_hw_dict = json.load(open(split_dir / 'img_hw.json'))
 
     seqmap_file = split_dir / f'evaluate_tracking.seqmap.{args.split}'
     frame_num_dict = read_seqmap_file(seqmap_file)
-    raw_score = config['data'].getboolean('raw_score')
+    raw_score = config['detection'].getboolean('raw_score')
 
     for seq in tqdm.tqdm(frame_num_dict):
         calib = Calibration(calib_dir / f'{seq}.txt')

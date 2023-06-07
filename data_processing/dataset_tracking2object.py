@@ -207,6 +207,7 @@ def create_test_sample_data(input_root, output_root, operation, init_or_clear_di
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="arg parser")
     parser.add_argument('--data_root', type=str, default='data/kitti')
+    parser.add_argument('--all', action='store_true')
     parser.add_argument('--symlink', action='store_true')
 
     args = parser.parse_args()
@@ -218,7 +219,7 @@ if __name__ == '__main__':
         output_root=out_dir,
         operation=operation,
         init_or_clear_dirs=True,
-        only_labels=False  # True: not modifying other data
+        only_labels=not args.all
     )
     create_test_sample_data(
         input_root=in_dir, 
