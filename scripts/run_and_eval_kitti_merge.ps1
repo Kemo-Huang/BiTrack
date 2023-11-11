@@ -1,0 +1,2 @@
+python ./kitti_trajectory_refinement.py $args[0] $args[1] $args[2] $args[3] $args[4];
+python ./TrackEval/scripts/run_kitti.py --TIME_PROGRESS False --PRINT_CONFIG False --GT_FOLDER ./data/kitti/tracking/training --TRACKERS_FOLDER ./output/kitti/$($args[2]) --CLASSES_TO_EVAL car --TRACKERS_TO_EVAL $args[1] --SPLIT_TO_EVAL $args[2]

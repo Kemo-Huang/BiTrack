@@ -1,0 +1,10 @@
+data
+output
+*.pth
+*.txt
+*.pyc
+*.obj
+build
+*.pyd
+*.egg-info
+__pycache__

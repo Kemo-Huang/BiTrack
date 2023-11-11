@@ -1,0 +1,1 @@
+python ./TrackEval/scripts/run_kitti.py --TIME_PROGRESS False --PRINT_CONFIG False --GT_FOLDER ./data/kitti/tracking/training --TRACKERS_FOLDER ./output/kitti/$($args[1]) --CLASSES_TO_EVAL car --TRACKERS_TO_EVAL $args[0] --SPLIT_TO_EVAL $args[1]
