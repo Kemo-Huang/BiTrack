@@ -2,7 +2,7 @@
 
 Bidirectional Offline 3D Multi-Object Tracking using Camera-LiDAR Data
 
-## KITTI Dataset
+## Get Started
 
 Put KITTI tracking data to the "data/kitti/tracking" directory (symbolic links are recommended).
 
