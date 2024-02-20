@@ -36,7 +36,7 @@ class VoxelQuery(Function):
 
         M = new_coords.shape[0]
         B, Z, Y, X = point_indices.shape
-        idx = torch.cuda.IntTensor(M, nsample).zero_()
+        idx = torch.zeros((M, nsample), dtype=torch.int32, device="cuda")
 
         z_range, y_range, x_range = max_range
         pointnet2.voxel_query_wrapper(

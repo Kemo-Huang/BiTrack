@@ -58,11 +58,14 @@ def write_kitti_detection_results(
             names = np.array(class_names)[pred_labels - 1]
 
             for i in range(num_samples):
-                obj = KittiObject3d(
-                    img_hw=img_hw_dict[str(frame_id).zfill(6)]
-                ).from_lidar_box(pred_boxes[i], calib, names[i], pred_scores[i])
-                line = obj.serialize()
-                lines.append(line)
+                try:
+                    obj = KittiObject3d(
+                        img_hw=img_hw_dict[str(frame_id).zfill(6)]
+                    ).from_lidar_box(pred_boxes[i], calib, names[i], pred_scores[i])
+                    line = obj.serialize()
+                    lines.append(line)
+                except ValueError:
+                    pass
 
         cur_det_file = output_dir / ("%s.txt" % frame_id)
         with open(cur_det_file, "w") as f:
