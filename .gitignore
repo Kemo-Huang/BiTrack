@@ -8,3 +8,4 @@ build
 *.pyd
 *.egg-info
 __pycache__
+*.pkl

@@ -1,10 +1,10 @@
-from collections import defaultdict
 from pathlib import Path
 from typing import Dict, List, Tuple
 
 import numpy as np
 from matplotlib import pyplot as plt
-from nuscenes.eval.tracking.data_classes import TrackingBox
+from nuscenes.eval.common.utils import quaternion_yaw
+from pyquaternion import Quaternion
 
 
 def sigmoid(x):
@@ -758,29 +758,6 @@ def read_kitti_trajectories_from_file(
     return trajectories
 
 
-def write_nusc_trajectories_to_file(
-    scene: Dict,
-    trajectories: Dict[int, Tuple[List[np.ndarray], List[TrackingBox]]],
-    numpy_dir: Path,
-) -> Dict[str, List[Dict]]:
-    cur_scene_results = defaultdict(list)
-    scene_numpy_dir = numpy_dir / scene["name"]
-    scene_numpy_dir.mkdir(exist_ok=True, parents=True)
-    for boxes, objs in trajectories.values():
-        if len(boxes) > 0:
-            cur_id = objs[0].tracking_id
-            if isinstance(boxes, list):
-                boxes = np.stack(boxes)
-            else:
-                assert isinstance(boxes, np.ndarray)
-            boxes = boxes.astype(np.float32).reshape(-1, 7)
-            boxes.tofile(f"{scene_numpy_dir / str(cur_id)}.bin")
-
-            for obj in objs:
-                cur_scene_results[obj.sample_token].append(obj.serialize())
-    return cur_scene_results
-
-
 def get_frustum_points(xyz, lidar2img, height=None, width=None, kitti=False):
     """
     Args:
@@ -826,3 +803,78 @@ def angle_in_range(angle: float):
     while angle < 0:
         angle += np.pi * 2
     return angle
+
+
+def get_quaternion_from_euler(roll, pitch, yaw):
+    """
+    Convert an Euler angle to a quaternion.
+
+    Input
+        :param roll: The roll (rotation around x-axis) angle in radians.
+        :param pitch: The pitch (rotation around y-axis) angle in radians.
+        :param yaw: The yaw (rotation around z-axis) angle in radians.
+
+    Output
+        :return qx, qy, qz, qw: The orientation in quaternion [x,y,z,w] format
+    """
+    qx = np.sin(roll / 2) * np.cos(pitch / 2) * np.cos(yaw / 2) - np.cos(
+        roll / 2
+    ) * np.sin(pitch / 2) * np.sin(yaw / 2)
+    qy = np.cos(roll / 2) * np.sin(pitch / 2) * np.cos(yaw / 2) + np.sin(
+        roll / 2
+    ) * np.cos(pitch / 2) * np.sin(yaw / 2)
+    qz = np.cos(roll / 2) * np.cos(pitch / 2) * np.sin(yaw / 2) - np.sin(
+        roll / 2
+    ) * np.sin(pitch / 2) * np.cos(yaw / 2)
+    qw = np.cos(roll / 2) * np.cos(pitch / 2) * np.cos(yaw / 2) + np.sin(
+        roll / 2
+    ) * np.sin(pitch / 2) * np.sin(yaw / 2)
+
+    return [qx, qy, qz, qw]
+
+
+class NuscenesObject:
+    def __init__(self, data: dict = None) -> None:
+        self.data = data
+        if data:
+            if "tracking_score" in data:
+                self.tracking_score = data["tracking_score"]
+            elif "detection_score" in data:
+                self.tracking_score = data["detection_score"]
+            else:
+                self.tracking_score = 0
+            self.tracking_id = None
+            self.sample_id = data["sample_token"]
+            self.loc = data["translation"]
+
+    def serialize(self):
+        self.data["tracking_id"] = str(self.tracking_id)
+        if "detection_name" in self.data:
+            self.data["tracking_name"] = self.data.pop("detection_name")
+        return self.data
+
+    def to_box(self):
+        return np.array(
+            self.data["translation"]
+            + self.data["size"]
+            + [quaternion_yaw(Quaternion(self.data["rotation"]))]
+        )
+
+    def from_box(
+        self, box, sample_token, velocity, tracking_id, tracking_name, tracking_score
+    ):
+        self.tracking_id = tracking_id
+        self.sample_id = sample_token
+        self.tracking_score = tracking_score
+        data = {
+            "sample_token": sample_token,
+            "translation": list(box[:3]),
+            "size": list(box[3:6]),
+            "rotation": get_quaternion_from_euler(0, 0, box[6]),
+            "velocity": velocity,
+            "tracking_id": tracking_id,
+            "tracking_name": tracking_name,
+            "tracking_score": tracking_score,
+        }
+        self.data = data
+        return self
