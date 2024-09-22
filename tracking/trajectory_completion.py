@@ -137,21 +137,25 @@ def linear_interpolation(
             cand_scores = np.array(nms_scores)
 
         for cand_id, cand_box, cand_score in zip(cand_ids, cand_boxes, cand_scores):
-            boxes, objs = trajectories[cand_id]
-            if isinstance(boxes, list):
-                boxes.append(cand_box)
-            else:
-                boxes = np.concatenate((boxes, cand_box[np.newaxis]))
-            objs.append(
-                KittiTrack3d(
-                    sample_id=frame,
-                    tracking_id=cand_id,
-                    img_hw=img_hw_dict[str(frame).zfill(6)],
-                ).from_lidar_box(
-                    lidar_box=cand_box, calib=calib, cls_type="Car", score=cand_score
+            try:
+                boxes, objs = trajectories[cand_id]
+                if isinstance(boxes, list):
+                    boxes.append(cand_box)
+                else:
+                    boxes = np.concatenate((boxes, cand_box[np.newaxis]))
+                objs.append(
+                    KittiTrack3d(
+                        sample_id=frame,
+                        tracking_id=cand_id,
+                        img_hw=img_hw_dict[str(frame).zfill(6)],
+                    ).from_lidar_box(
+                        lidar_box=cand_box, calib=calib, cls_type="Car", score=cand_score
+                    )
                 )
-            )
-            trajectories[cand_id] = sort_trajectory_by_frame((boxes, objs))
+                trajectories[cand_id] = sort_trajectory_by_frame((boxes, objs))
+            
+            except ValueError:
+                continue
 
     if visualize:
         visualize_trajectories([trajectories[tid][0] for tid in vis_ids])

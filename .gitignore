@@ -1,6 +1,4 @@
-data/nuscenes
-data/nuscenes_mini
-data/kitti/detection
+data
 output
 *.pth
 *.txt
