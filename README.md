@@ -1,6 +1,6 @@
 # BiTrack
 
-Bidirectional Offline 3D Multi-Object Tracking using Camera-LiDAR Data
+[BiTrack: Bidirectional Offline 3D Multi-Object Tracking Using Camera-LiDAR Data](https://arxiv.org/abs/2406.18414)
 
 ## Get Started
 
